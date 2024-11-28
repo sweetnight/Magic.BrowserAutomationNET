@@ -586,7 +586,16 @@ namespace Magic.BrowserAutomationNET
         {
 
             if (Driver == null) return;
-            Driver.Manage().Cookies.DeleteAllCookies();
+
+            try
+            {
+                // Hapus semua cookies
+                Driver.Manage().Cookies.DeleteAllCookies();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Gagal menghapus cookies: {ex.Message}");
+            }
 
         } // end of method
 
@@ -595,13 +604,27 @@ namespace Magic.BrowserAutomationNET
 
             if (Driver == null) return;
 
-            // Hapus semua cookies
-            Driver.Manage().Cookies.DeleteAllCookies();
+            try
+            {
+                // Hapus semua cookies
+                Driver.Manage().Cookies.DeleteAllCookies();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Gagal menghapus cookies: {ex.Message}");
+            }
 
-            // Hapus cache
-            IJavaScriptExecutor js = (IJavaScriptExecutor)Driver!;
-            js.ExecuteScript("window.localStorage.clear();");
-            js.ExecuteScript("window.sessionStorage.clear();");
+            try
+            {
+                // Hapus cache
+                IJavaScriptExecutor js = (IJavaScriptExecutor)Driver!;
+                js.ExecuteScript("window.localStorage.clear();");
+                js.ExecuteScript("window.sessionStorage.clear();");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Gagal menghapus cache: {ex.Message}");
+            }
 
         } // end of method
 
