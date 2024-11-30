@@ -945,6 +945,35 @@ namespace Magic.BrowserAutomationNET
             return scrollHeight;
         } // end of method
 
+        public long ScrollToTop(WebElement webElement, int wait = 0)
+        {
+            IJavaScriptExecutor js = (IJavaScriptExecutor)Driver!;
+            // Scroll elemen ke atas dan ambil nilai scrollTop setelah digulir
+            long scrollTop = (long)js.ExecuteScript("arguments[0].scrollTop = 0; return arguments[0].scrollTop;", webElement.Item);
+
+            if(wait > 0)
+            {
+                Thread.Sleep(wait); // Tunggu sesuai durasi yang diberikan
+            }
+
+            return scrollTop;
+        } // end of method
+
+        public void ScrollToElement(WebElement webElement, int wait = 0)
+        {
+            IJavaScriptExecutor js = (IJavaScriptExecutor)Driver!;
+
+            // Gunakan JavaScript untuk scroll elemen ke dalam viewport
+            js.ExecuteScript("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", webElement.Item);
+
+            // Tambahkan jeda kecil jika diperlukan
+
+            if(wait > 0)
+            {
+                Thread.Sleep(wait);
+            }
+        } // end of method
+
         public ScrollResult Scroll(int Height)
         {
             ScrollResult scrollResult = new ScrollResult();
