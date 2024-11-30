@@ -8,6 +8,7 @@ using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.DevTools;
 using OpenQA.Selenium.Interactions;
+using OpenQA.Selenium.Support.UI;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Magic.BrowserAutomationNET
@@ -597,6 +598,38 @@ namespace Magic.BrowserAutomationNET
                 Debug.WriteLine($"Gagal menghapus cookies: {ex.Message}");
             }
 
+        } // end of method
+
+        public void WaitForPageToLoad()
+        {
+            IJavaScriptExecutor js = (IJavaScriptExecutor)Driver!;
+            int timeoutInSeconds = 10;
+            WebDriverWait wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(timeoutInSeconds));
+
+            wait.Until(driver => js.ExecuteScript("return document.readyState").ToString() == "complete");
+        } // end of method
+
+        public void ClearSessionAndReload()
+        {
+            if (Driver == null) return;
+
+            try
+            {
+                // Hapus semua cookies
+                Driver.Manage().Cookies.DeleteAllCookies();
+
+                // Hapus cache dan storage
+                IJavaScriptExecutor js = (IJavaScriptExecutor)Driver!;
+                js.ExecuteScript("window.localStorage.clear();");
+                js.ExecuteScript("window.sessionStorage.clear();");
+
+                // Paksa reload halaman untuk memastikan state di-reset
+                js.ExecuteScript("window.location.reload(true);");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Gagal membersihkan sesi: {ex.Message}");
+            }
         } // end of method
 
         public void DeleteAllResources()
