@@ -1,6 +1,8 @@
 ﻿using System.CodeDom.Compiler;
 using System.Diagnostics;
 using System.Globalization;
+using System.Net.Sockets;
+using System.Text.Json;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -26,7 +28,11 @@ namespace Magic.BrowserAutomationNET
         public bool DisableApplicationCache { get; set; } = false;
         public bool Kiosk { get; set; } = false;
         public string Profile { get; set; } = string.Empty;
+        
+        // hanya sampai direktori tempat file .exe
         public string DriverDirectory { get; set; }
+
+        // full path sampai ke filename .exe ATAU bisa jg sampai direktori lokasi .exe nya saja
         public string BinaryLocation { get; set; }
         public bool SaveResources { get; set; } = true;
 
@@ -109,6 +115,18 @@ namespace Magic.BrowserAutomationNET
 
                 ChromeOptions.AddArgument($@"--user-data-dir={path}/Google/Chrome/User Data");
                 ChromeOptions.AddArgument($"--profile-directory={Profile}");
+
+                /*
+                string path = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Google",
+                    "Chrome",
+                    "User Data"
+                );
+
+                ChromeOptions.AddArgument($"--user-data-dir={path}");
+                ChromeOptions.AddArgument($"--profile-directory={Profile}");
+                */
             }
 
             ChromeOptions.AddArgument("--allow-running-insecure-content");
@@ -600,6 +618,32 @@ namespace Magic.BrowserAutomationNET
 
         } // end of method
 
+        public string GetLocalStorageJson()
+        {
+            IJavaScriptExecutor js = (IJavaScriptExecutor)Driver!;
+            return (string)js.ExecuteScript("return JSON.stringify(localStorage);");
+        } // end of method
+
+        public void SetLocalStorageJson(string localStorageJson)
+        {
+            if (Driver is IJavaScriptExecutor js)
+            {
+                // Escape string agar tidak error di JavaScript
+                string escapedJson = localStorageJson
+                    .Replace(@"\", @"\\")  // Escape backslash
+                    .Replace("`", "\\`");  // Escape backtick karena pakai template literal
+
+                string script = $@"
+                    var items = JSON.parse(`{escapedJson}`);
+                    for (var key in Object.keys(items)) {{
+                        localStorage.setItem(key, items[key]);
+                    }}
+                ";
+
+                js.ExecuteScript(script);
+            }
+        } // end of method
+
         public void WaitForPageToLoad()
         {
             IJavaScriptExecutor js = (IJavaScriptExecutor)Driver!;
@@ -1045,255 +1089,132 @@ namespace Magic.BrowserAutomationNET
             }
         } // end of method
 
+        public bool InjectScript(string jsCode, out string message)
+        {
+            message = string.Empty;
+
+            try
+            {
+                if (Driver == null)
+                {
+                    message = "Driver belum diinisialisasi.";
+                    return false;
+                }
+
+                IJavaScriptExecutor jsExecutor = (IJavaScriptExecutor)Driver;
+
+                jsExecutor.ExecuteScript(jsCode);
+
+                message = "Script berhasil disuntikkan.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                message = "Gagal menyuntikkan script. Exception: " + ex.Message;
+                return false;
+            }
+        } // end of method
+
+
+        public bool OpenWAChatToNumber(string nomorWaIndonesia, out string message)
+        {
+            if (nomorWaIndonesia.StartsWith("0"))
+                nomorWaIndonesia = "62" + nomorWaIndonesia.Substring(1);
+            else if (nomorWaIndonesia.StartsWith("+"))
+                nomorWaIndonesia = nomorWaIndonesia.Substring(1);
+
+            string chatId = nomorWaIndonesia + "@c.us";
+
+            string jsScript = $@"
+(async () => {{
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    const getStoreModule = (key) => {{
+        const modules = webpackChunkwhatsapp_web_client.flatMap(m => Object.values(m[1]))
+            .map(mod => {{
+                try {{ return mod(); }} catch (e) {{ return null; }}
+            }})
+            .filter(Boolean);
+        return modules.find(m => m && m[key] !== undefined);
+    }};
+
+    for (let i = 0; i < 100; i++) {{
+        if (window.webpackChunkwhatsapp_web_client) break;
+        await sleep(100);
+    }}
+
+    const ChatStore = getStoreModule('find');
+    const CmdStore = getStoreModule('openChatAt');
+
+    if (!ChatStore || !CmdStore) {{
+        alert('Modul internal tidak ditemukan.');
+        return;
+    }}
+
+    try {{
+        let chat = await ChatStore.find('{chatId}');
+        if (!chat && ChatStore.findOrCreateChat) {{
+            chat = await ChatStore.findOrCreateChat('{chatId}');
+        }}
+        if (!chat) {{
+            alert('Tidak bisa membuat atau menemukan chat.');
+            return;
+        }}
+        CmdStore.openChatAt(chat);
+    }} catch (e) {{
+        alert('Gagal membuka chat: ' + e.message);
+    }}
+}})();
+";
+
+            return InjectScript(jsScript, out message);
+        }
+
+
         public class Version
         {
-            public int BrowserMajorVersion { get; set; } = 0;
-            public int DriverMajorVersion { get; set; } = 0;
 
-            public string BrowserFullVersion { get; set; } = null!;
-            public string DriverFullVersion { get; set; } = null!;
-
-            public string DriverDownloadURL { get; set; } = null!;
-
-            private HttpClient _httpClient = null!;
-
-            public Version()
+            public static async Task<(string version, string downloadURL)> GetLatestChromedriverData()
             {
 
-            } // end of method
+                string apiUrl = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
 
-            public async Task CurrentVersion(string chromedriverDirectory = null!)
-            {
-                await Task.Run(() =>
+                using (HttpClient client = new HttpClient())
                 {
-                    if (!System.IO.File.Exists("chromedriver.exe"))
-                    {
-                        this.BrowserFullVersion = null!;
-                        this.DriverFullVersion = null!;
-
-                        this.BrowserMajorVersion = 0;
-                        this.DriverMajorVersion = 0;
-
-                        return;
-                    }
-
-                    Chrome chrome = new Chrome();
-
-                    chrome.DriverDirectory = chromedriverDirectory;
-                    chrome.Headless = true;
-                    chrome.SetChromeOptions();
-
                     try
                     {
-                        chrome.Driver = new ChromeDriver(chrome.ChromeDriverService, chrome.ChromeOptions);
-                        //chrome.Driver = new ChromeDriver(chrome.ChromeOptions);
+                        // Mengambil data JSON dari URL
+                        string jsonResponse = await client.GetStringAsync(apiUrl);
 
-                        ICapabilities capabilities = ((ChromeDriver)chrome.Driver).Capabilities;
-
-                        this.BrowserFullVersion = capabilities["browserVersion"].ToString()!;
-                        //Console.WriteLine("BrowserFullVersion (in CurrentVersion Method) : " + this.BrowserFullVersion);
-
-                        this.DriverFullVersion = (capabilities["chrome"] as Dictionary<string, object>)!["chromedriverVersion"].ToString()!.Split(' ')[0];
-
-                        this.BrowserMajorVersion = Convert.ToInt32(this.BrowserFullVersion!.Split('.')[0]);
-                        //Console.WriteLine("BrowserMajorVersion (in CurrentVersion Method) : " + this.BrowserMajorVersion);
-
-                        this.DriverMajorVersion = Convert.ToInt32(this.DriverFullVersion.Split('.')[0]);
-
-
-                    }
-                    catch (Exception ex)
-                    {
-                        //session not created: This version of ChromeDriver only supports Chrome version 102
-                        //Current browser version is 108.0.5359.125 with binary path C:\Program Files(x86)\Google\Chrome\Application\chrome.exe(SessionNotCreated)
-
-                        if (ex.Message.Contains("This version of ChromeDriver only supports Chrome version"))
+                        // Mendapatkan data versi stable
+                        using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
                         {
-                            this.BrowserFullVersion = ex.Message.Split(new string[] { "urrent browser version is " }, StringSplitOptions.None)[1].Split(' ')[0];
-                            this.BrowserMajorVersion = Convert.ToInt32(BrowserFullVersion.Split('.')[0]);
+                            var root = doc.RootElement;
+                            var stableVersion = root.GetProperty("channels").GetProperty("Stable").GetProperty("version").GetString();
 
-                            this.DriverFullVersion = null!;
-                            this.DriverMajorVersion = Convert.ToInt32(ex.Message.Split(new string[] { "only supports Chrome version " }, StringSplitOptions.None)[1].Split('\n')[0]);
+                            // Mendapatkan URL download untuk platform win32
+                            foreach (var download in root.GetProperty("channels").GetProperty("Stable").GetProperty("downloads").GetProperty("chromedriver").EnumerateArray())
+                            {
+                                if (download.GetProperty("platform").GetString() == "win64")
+                                {
+                                    var downloadUrl = download.GetProperty("url").GetString();
+                                    return (stableVersion, downloadUrl)!;
+                                }
+                            }
                         }
-                        else
-                        {
-                            Console.WriteLine(ex.Message);
-                        }
-
                     }
-
-                    /*
-                    Console.WriteLine("BrowserFullVersion : " + this.BrowserFullVersion);
-                    Console.WriteLine("DriverFullVersion : " + this.DriverFullVersion);
-                    Console.WriteLine("BrowserMajorVersion : " + this.BrowserMajorVersion);
-                    Console.WriteLine("DriverMajorVersion : " + this.DriverMajorVersion);
-                    */
-
-                    if (chrome.Driver != null)
+                    catch (HttpRequestException e)
                     {
-                        chrome.Driver.Quit();
-                        chrome.Driver = null;
+                        Console.WriteLine($"Error saat mengakses URL: {e.Message}");
+                    }
+                    catch (System.Text.Json.JsonException e)
+                    {
+                        Console.WriteLine($"Error saat memproses data JSON: {e.Message}");
                     }
 
-                });
-            } // end of method
-
-            public async Task LatestRelease(HttpClient httpClient)
-            {
-                await this.BrowserLatestRelease(httpClient);
-
-                Console.WriteLine("BrowserFullVersion (in LatestRelease Method) : " + this.BrowserFullVersion);
-                Console.WriteLine("BrowserMajorVersion (in LatestRelease Method) : " + this.BrowserMajorVersion);
-
-                await this.DriverMatchedLatestRelease(this.BrowserFullVersion, httpClient);
-            } // end of method
-
-            public async Task BrowserLatestRelease_(HttpClient httpClient)
-            {
-                this._httpClient = httpClient;
-
-                string csv = await this.GetBrowserVersionData();
-                Console.WriteLine("Latest stable (from BrowserLatestRelease Method) : " + csv);
-
-                if (csv == null)
-                {
-                    return;
+                    return ("0.0.0.0", string.Empty);
                 }
 
-                string[] parts = csv.Split(new string[] { "win,stable," }, StringSplitOptions.None);
-
-                if (parts.Length < 2)
-                {
-                    Console.WriteLine("Couldn't find the version tag in the CSV.");
-                    return;
-                }
-
-                string[] version = parts[1].Split(new string[] { "," }, StringSplitOptions.None);
-
-                if (version.Length == 0)
-                {
-                    Console.WriteLine("Couldn't extract the version from the CSV.");
-                    return;
-                }
-
-                this.BrowserFullVersion = version[0];
-                this.BrowserMajorVersion = Convert.ToInt32(version[0].Split('.')[0]);
-
-                Console.WriteLine("BrowserFullVersion (in BrowserLatestRelease Method) : " + this.BrowserFullVersion);
-                Console.WriteLine("BrowserMajorVersion (in BrowserLatestRelease Method) : " + this.BrowserMajorVersion);
-            } // end of method
-
-            public async Task BrowserLatestRelease(HttpClient httpClient)
-            {
-                this._httpClient = httpClient;
-
-                this.BrowserFullVersion = await this.GetBrowserVersionData();
-                this.BrowserMajorVersion = Convert.ToInt32(this.BrowserFullVersion.Split('.')[0]);
-
-                Console.WriteLine("BrowserFullVersion (in BrowserLatestRelease Method) : " + this.BrowserFullVersion);
-                Console.WriteLine("BrowserMajorVersion (in BrowserLatestRelease Method) : " + this.BrowserMajorVersion);
-            } // end of method
-
-            public async Task DriverMatchedLatestRelease(string BrowserFullVersion, HttpClient httpClient)
-            {
-                this._httpClient = httpClient;
-
-                string? json = await this.GetDriverVersionData();
-
-                if (json == null)
-                {
-                    return;
-                }
-
-                JObject jsonObject = JObject.Parse(json);
-                JObject milestones = (JObject)jsonObject["milestones"]!;
-
-                // 116
-                //Console.WriteLine("BrowserFullVersion : " + BrowserFullVersion);
-                string versionMajor = BrowserFullVersion.Split(new string[] { "." }, StringSplitOptions.None)[0];
-
-                if (milestones.ContainsKey(versionMajor))
-                {
-                    JObject milestone = (JObject)milestones[versionMajor]!; // object 116
-                    JArray chromedriverDownloads = (JArray)milestone["downloads"]!["chromedriver"]!;
-
-                    // https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/116.0.5845.96/win32/chromedriver-win32.zip
-                    string downloadUrl = chromedriverDownloads
-                        .Where(item => item["platform"]!.Value<string>() == "win32")
-                        .Select(item => item["url"]!.Value<string>())
-                        .FirstOrDefault()!;
-
-                    string fullVersion = (string)milestone["version"]!;
-
-                    this.DriverFullVersion = fullVersion;
-                    this.DriverMajorVersion = Convert.ToInt32(fullVersion.Split('.')[0]);
-                    this.DriverDownloadURL = downloadUrl;
-                }
-                else
-                {
-                    Console.WriteLine($"Versi {versionMajor} tidak ditemukan.");
-                    return;
-                }
-
-            } // end of method
-
-            private async Task<string> GetBrowserVersionData()
-            {
-                string url = "https://chromiumdash.appspot.com/fetch_milestones?only_branched=true";
-
-                try
-                {
-                    HttpResponseMessage response = await _httpClient.GetAsync(url);
-                    response.EnsureSuccessStatusCode();
-
-                    string responseContent = await response.Content.ReadAsStringAsync();
-                    var milestones = JsonConvert.DeserializeObject<List<dynamic>>(responseContent);
-
-                    // Mengambil milestone, v8_branch, dan chromium_branch
-                    var latestMilestone = milestones![0];
-                    var milestoneNumber = latestMilestone.milestone;
-                    var v8Branch = latestMilestone.v8_branch.ToString();
-                    var chromiumBranch = latestMilestone.chromium_branch;
-
-                    // Mengambil angka di belakang koma dari v8_branch
-                    var v8BranchMinor = v8Branch.Contains(".") ? v8Branch.Split('.')[1] : "0";
-
-                    // Membangun string versi lengkap
-                    string fullVersion = $"{milestoneNumber}.{v8BranchMinor}.{chromiumBranch}";
-
-                    return fullVersion;
-                }
-                catch (HttpRequestException e)
-                {
-                    Console.WriteLine("Terjadi kesalahan saat mengirim permintaan GET:");
-                    Console.WriteLine(e.Message);
-
-                    return null!;
-                }
-            }
-
-
-            private async Task<string> GetDriverVersionData()
-            {
-                string url = "https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json";
-
-                try
-                {
-                    HttpResponseMessage response = await _httpClient.GetAsync(url);
-                    response.EnsureSuccessStatusCode();
-
-                    //string readed = await response.Content.ReadAsStringAsync();
-                    //Console.Out.WriteLineAsync(readed);
-
-                    return await response.Content.ReadAsStringAsync();
-                }
-                catch (HttpRequestException e)
-                {
-                    Console.WriteLine("Terjadi kesalahan saat mengirim permintaan GET:");
-                    Console.WriteLine(e.Message);
-
-                    return null!;
-                }
             } // end of method
 
         } // end of class Version
