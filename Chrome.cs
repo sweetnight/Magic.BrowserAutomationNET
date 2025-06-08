@@ -169,7 +169,16 @@ namespace Magic.BrowserAutomationNET
             if (SaveResources)
             {
                 ChromeOptions.AddArgument("--disable-gpu");
+                ChromeOptions.AddArgument("--disable-dev-shm-usage");
+                ChromeOptions.AddArgument("--disable-features=TranslateUI");
+                ChromeOptions.AddArgument("--disable-background-timer-throttling");
+                ChromeOptions.AddArgument("--disable-backgrounding-occluded-windows");
+                ChromeOptions.AddArgument("--disable-renderer-backgrounding");
+                ChromeOptions.AddArgument("--disable-default-apps");
+                ChromeOptions.AddArgument("--disable-translate");
+                ChromeOptions.AddArgument("--no-first-run");
                 //ChromeOptions.AddArgument("--disable-extensions");
+
                 ChromeOptions.AddArgument("--disable-plugins");
                 ChromeOptions.AddArgument("--disable-background-networking");
                 ChromeOptions.AddArgument("--disable-software-rasterizer");
