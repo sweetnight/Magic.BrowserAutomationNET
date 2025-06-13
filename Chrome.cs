@@ -1,17 +1,12 @@
-﻿using System.CodeDom.Compiler;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
-using System.Net.Sockets;
 using System.Text.Json;
 using System.Windows.Forms;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.DevTools;
 using OpenQA.Selenium.Interactions;
 using OpenQA.Selenium.Support.UI;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Magic.BrowserAutomationNET
 {
@@ -249,6 +244,8 @@ namespace Magic.BrowserAutomationNET
             }
             catch (Exception ex)
             {
+                Debug.WriteLine(ex.Message);
+
                 if (ex.Message.Contains("This version of ChromeDriver only supports Chrome version"))
                 {
                     string browserVersionEtc = ex.Message.Split(new string[] { "urrent browser version is " }, StringSplitOptions.None)[1];
@@ -1123,62 +1120,6 @@ namespace Magic.BrowserAutomationNET
                 return false;
             }
         } // end of method
-
-
-        public bool OpenWAChatToNumber(string nomorWaIndonesia, out string message)
-        {
-            if (nomorWaIndonesia.StartsWith("0"))
-                nomorWaIndonesia = "62" + nomorWaIndonesia.Substring(1);
-            else if (nomorWaIndonesia.StartsWith("+"))
-                nomorWaIndonesia = nomorWaIndonesia.Substring(1);
-
-            string chatId = nomorWaIndonesia + "@c.us";
-
-            string jsScript = $@"
-(async () => {{
-    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-    const getStoreModule = (key) => {{
-        const modules = webpackChunkwhatsapp_web_client.flatMap(m => Object.values(m[1]))
-            .map(mod => {{
-                try {{ return mod(); }} catch (e) {{ return null; }}
-            }})
-            .filter(Boolean);
-        return modules.find(m => m && m[key] !== undefined);
-    }};
-
-    for (let i = 0; i < 100; i++) {{
-        if (window.webpackChunkwhatsapp_web_client) break;
-        await sleep(100);
-    }}
-
-    const ChatStore = getStoreModule('find');
-    const CmdStore = getStoreModule('openChatAt');
-
-    if (!ChatStore || !CmdStore) {{
-        alert('Modul internal tidak ditemukan.');
-        return;
-    }}
-
-    try {{
-        let chat = await ChatStore.find('{chatId}');
-        if (!chat && ChatStore.findOrCreateChat) {{
-            chat = await ChatStore.findOrCreateChat('{chatId}');
-        }}
-        if (!chat) {{
-            alert('Tidak bisa membuat atau menemukan chat.');
-            return;
-        }}
-        CmdStore.openChatAt(chat);
-    }} catch (e) {{
-        alert('Gagal membuka chat: ' + e.message);
-    }}
-}})();
-";
-
-            return InjectScript(jsScript, out message);
-        }
-
 
         public class Version
         {
