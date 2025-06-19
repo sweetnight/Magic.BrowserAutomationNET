@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Text.Json;
 using System.Windows.Forms;
 using Newtonsoft.Json;
@@ -1095,6 +1096,14 @@ namespace Magic.BrowserAutomationNET
             }
         } // end of method
 
+        public bool InjectScriptFromFile(string jsFile, out string message)
+        {
+
+            string jsCode = File.ReadAllText(jsFile);
+            return InjectScript(jsCode, out message);
+
+        } // end of method
+
         public bool InjectScript(string jsCode, out string message)
         {
             message = string.Empty;
@@ -1124,7 +1133,7 @@ namespace Magic.BrowserAutomationNET
         public class Version
         {
 
-            public static async Task<(string version, string downloadURL)> GetLatestChromedriverData()
+            public static async Task<(string LatestVersion, string ChromeForTestingDownloadURL, string ChromedriverDownloadURL)> GetLatestChromeData()
             {
 
                 string apiUrl = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
@@ -1139,18 +1148,34 @@ namespace Magic.BrowserAutomationNET
                         // Mendapatkan data versi stable
                         using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
                         {
-                            var root = doc.RootElement;
-                            var stableVersion = root.GetProperty("channels").GetProperty("Stable").GetProperty("version").GetString();
+                            JsonElement root = doc.RootElement;
+                            JsonElement stable = root.GetProperty("channels").GetProperty("Stable");
+                            string stableVersion = stable.GetProperty("version").GetString()!;
 
-                            // Mendapatkan URL download untuk platform win32
-                            foreach (var download in root.GetProperty("channels").GetProperty("Stable").GetProperty("downloads").GetProperty("chromedriver").EnumerateArray())
+                            string chromeUrl = string.Empty;
+                            string chromedriverUrl = string.Empty;
+
+                            // Ambil URL Chrome win64
+                            foreach (var download in stable.GetProperty("downloads").GetProperty("chrome").EnumerateArray())
                             {
                                 if (download.GetProperty("platform").GetString() == "win64")
                                 {
-                                    var downloadUrl = download.GetProperty("url").GetString();
-                                    return (stableVersion, downloadUrl)!;
+                                    chromeUrl = download.GetProperty("url").GetString()!;
+                                    break;
                                 }
                             }
+
+                            // Ambil URL Chromedriver win64
+                            foreach (var download in stable.GetProperty("downloads").GetProperty("chromedriver").EnumerateArray())
+                            {
+                                if (download.GetProperty("platform").GetString() == "win64")
+                                {
+                                    chromedriverUrl = download.GetProperty("url").GetString()!;
+                                    break;
+                                }
+                            }
+
+                            return (stableVersion, chromeUrl, chromedriverUrl);
                         }
                     }
                     catch (HttpRequestException e)
@@ -1162,7 +1187,7 @@ namespace Magic.BrowserAutomationNET
                         Console.WriteLine($"Error saat memproses data JSON: {e.Message}");
                     }
 
-                    return ("0.0.0.0", string.Empty);
+                    return ("0.0.0.0", string.Empty, string.Empty);
                 }
 
             } // end of method
