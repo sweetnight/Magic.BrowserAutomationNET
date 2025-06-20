@@ -298,6 +298,9 @@ namespace Magic.BrowserAutomationNET
 
         public WebPage Navigate(string Url)
         {
+
+            Debug.WriteLine("Chrome ==================== : Akan melakukan Navigate");
+
             WebPage returnResults = new WebPage();
 
             try
@@ -310,6 +313,8 @@ namespace Magic.BrowserAutomationNET
                 returnResults.State = true;
                 returnResults.Message = "Navigate successfully.";
                 returnResults.Url = Url;
+
+                Debug.WriteLine("Chrome ==================== : Navigate berhasil: " + Url);
             }
             catch (Exception ex)
             {
@@ -317,7 +322,7 @@ namespace Magic.BrowserAutomationNET
                 returnResults.Message = "Navigate failed. Exception : " + ex.Message;
                 returnResults.Url = string.Empty;
 
-                Console.WriteLine(ex.Message);
+                Debug.WriteLine("Chrome ==================== : Navigate exception: " + ex.Message);
             }
 
             return returnResults;
@@ -325,6 +330,9 @@ namespace Magic.BrowserAutomationNET
 
         public WebPage Refresh()
         {
+            
+            Debug.WriteLine("Chrome ==================== : Akan melakukan refresh");
+
             WebPage returnResults = new WebPage();
 
             try
@@ -333,9 +341,12 @@ namespace Magic.BrowserAutomationNET
                 {
                     Driver.Navigate().Refresh();
 
+                    string Url = GetCurrentUrl().Url;
                     returnResults.State = true;
-                    returnResults.Url = GetCurrentUrl().Url;
+                    returnResults.Url = Url;
                     returnResults.Message = "Refresh successfully.";
+
+                    Debug.WriteLine("Chrome ==================== : Refresh berhasil: " + Url);
                 }
             }
             catch (Exception ex)
@@ -343,9 +354,12 @@ namespace Magic.BrowserAutomationNET
                 returnResults.State = false;
                 returnResults.Url = string.Empty;
                 returnResults.Message = "Refresh failed. Exception : " + ex.Message;
+
+                Debug.WriteLine("Chrome ==================== : Refresh exception: " + ex.Message);
             }
 
             return returnResults;
+
         } // end of function
 
         public WebPage GetCurrentUrl()
@@ -381,7 +395,8 @@ namespace Magic.BrowserAutomationNET
 
         public WebElement FindElementByXPath(string XPathSelector, int timeSpan = 10)
         {
-            Debug.WriteLine("Akan select : " + XPathSelector);
+
+            Debug.WriteLine("Chrome ==================== : Akan select elemen by xpath: " + XPathSelector);
 
             WebElement webElement = new WebElement();
 
@@ -389,6 +404,8 @@ namespace Magic.BrowserAutomationNET
             {
                 webElement.State = false;
                 webElement.Message = "Driver is null.";
+
+                Debug.WriteLine("Chrome ==================== : Gagal select elemen by xpath 'Driver is null': " + XPathSelector);
 
                 return webElement;
             }
@@ -400,11 +417,16 @@ namespace Magic.BrowserAutomationNET
                 webElement.Item = Driver.FindElement(By.XPath(XPathSelector));
                 webElement.State = true;
                 webElement.Message = "Element is found.";
+
+                Debug.WriteLine("Chrome ==================== : Berhasil select elemen by xpath: " + XPathSelector);
+
             }
             catch (Exception ex)
             {
                 webElement.State = false;
                 webElement.Message = "Element is NOT found. Exception: " + ex;
+
+                Debug.WriteLine("Chrome ==================== : Gagal select elemen by xpath: " + XPathSelector + ". Exception: " + ex.Message);
             }
             finally
             {
@@ -416,6 +438,8 @@ namespace Magic.BrowserAutomationNET
                 {
                     webElement.State = false;
                     webElement.Message = "Clear implicit wait failed. Exception: " + ex;
+
+                    Debug.WriteLine("Chrome ==================== : Gagal select elemen by xpath: " + XPathSelector + ". Exception: " + ex.Message);
                 }
             }
 
@@ -423,6 +447,7 @@ namespace Magic.BrowserAutomationNET
             webElement.Driver = Driver;
 
             return webElement;
+
         } // end of method
 
         public WebElements FindElementsByXPath(string XPathSelector, int timeSpan = 10)
@@ -611,16 +636,19 @@ namespace Magic.BrowserAutomationNET
         public void DeleteAllCookies()
         {
 
+            Debug.WriteLine("Chrome ==================== : Akan menghapus semua cookies");
+
             if (Driver == null) return;
 
             try
             {
                 // Hapus semua cookies
                 Driver.Manage().Cookies.DeleteAllCookies();
+                Debug.WriteLine("Chrome ==================== : Berhasil menghapus semua cookies");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Gagal menghapus cookies: {ex.Message}");
+                Debug.WriteLine("Chrome ==================== : Gagal menghapus semua cookies: " + ex.Message);
             }
 
         } // end of method
@@ -975,6 +1003,9 @@ namespace Magic.BrowserAutomationNET
 
         public void AddCookiesFromJson(string jsonString)
         {
+
+            Debug.WriteLine("Chrome ==================== : Akan melakukan AddCookiesFromJson");
+
             List<CookieInStrings> cookieInStrings = JsonConvert.DeserializeObject<List<CookieInStrings>>(jsonString)!;
 
             foreach (CookieInStrings cookieItem in cookieInStrings!)
@@ -984,10 +1015,11 @@ namespace Magic.BrowserAutomationNET
                     try
                     {
                         CookieData cookieData = AddCookie(cookieItem.Name, cookieItem.Value, cookieItem.Domain, cookieItem.Path, null);
+                        Debug.WriteLine("Chrome ==================== : Berhasil melakukan AddCookiesFromJson di try pertama");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine(ex.Message);
+                        Debug.WriteLine("Chrome ==================== : Gagal melakukan AddCookiesFromJson di catch pertama: " + ex.Message);
                     }
                 }
                 else
@@ -998,19 +1030,19 @@ namespace Magic.BrowserAutomationNET
                     {
                         expiry = DateTime.ParseExact(cookieItem.Expiry, "M/d/yyyy h:m:s tt", new CultureInfo("en-US"));
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        Console.WriteLine(ex.Message);
                         continue;
                     }
 
                     try
                     {
                         CookieData cookieData = AddCookie(cookieItem.Name, cookieItem.Value, cookieItem.Domain, cookieItem.Path, expiry);
+                        Debug.WriteLine("Chrome ==================== : Berhasil melakukan AddCookiesFromJson di try kedua");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine(ex.Message);
+                        Debug.WriteLine("Chrome ==================== : Gagal melakukan AddCookiesFromJson di catch kedua: " + ex.Message);
                     }
 
                 }
