@@ -445,6 +445,7 @@ namespace Magic.BrowserAutomationNET
 
             webElement.Selector = XPathSelector;
             webElement.Driver = Driver;
+            webElement.Chrome = this;
 
             return webElement;
 
@@ -1286,7 +1287,7 @@ namespace Magic.BrowserAutomationNET
                     {
                         result.Status = false;
                         result.Type = 2;
-                        result.Message = $"'{webElement.Selector}' element click is failed for {i} times / seconds. Exception : {ex.Message}";
+                        result.Message = $"'{webElement.Selector}' element click is failed for {i} timeout / seconds. Exception : {ex.Message}";
 
                         Console.WriteLine(result.Message);
 
@@ -1336,7 +1337,7 @@ namespace Magic.BrowserAutomationNET
                     {
                         result.Status = false;
                         result.Type = 2;
-                        result.Message = $"Send keys is failed for {i} times / seconds. Exeption : {ex.Message}";
+                        result.Message = $"Send keys is failed for {i} timeout / seconds. Exeption : {ex.Message}";
 
                         return result;
                     }
@@ -1386,7 +1387,7 @@ namespace Magic.BrowserAutomationNET
                     {
                         result.Status = false;
                         result.Type = 2;
-                        result.Message = $"Send keys is failed for {i} times / seconds. Exception : {ex.Message}";
+                        result.Message = $"Send keys is failed for {i} timeout / seconds. Exception : {ex.Message}";
                         return result;
                     }
                     i++;
@@ -1452,7 +1453,7 @@ namespace Magic.BrowserAutomationNET
                     {
                         result.Status = false;
                         result.Type = 2;
-                        result.Message = $"Send keys is failed for {i} times / seconds. Exception : {ex.Message}";
+                        result.Message = $"Send keys is failed for {i} timeout / seconds. Exception : {ex.Message}";
 
                         return result;
                     }
@@ -1527,7 +1528,7 @@ namespace Magic.BrowserAutomationNET
                     {
                         result.Status = false;
                         result.Type = 2;
-                        result.Message = $"Element click is failed for {i} times / seconds. Exception : {ex.Message}";
+                        result.Message = $"Element click is failed for {i} timeout / seconds. Exception : {ex.Message}";
 
                         Console.WriteLine(result.Message);
 
@@ -1629,6 +1630,49 @@ namespace Magic.BrowserAutomationNET
 
             return false;
         } // end of element
+
+        public static string? SafeGetAttribute(this WebElement webElement, string attribute, int timeout = 10)
+        {
+
+            for (int attempt = 0; attempt < timeout; attempt++)
+            {
+                try
+                {
+                    if (webElement.Item == null) return null;
+
+                    return webElement.Item.GetAttribute(attribute);
+                }
+                catch (StaleElementReferenceException)
+                {
+                    Debug.WriteLine($"Chrome ==================== : SafeGetAttribute: StaleElementReferenceException di attempt {attempt + 1} dari {timeout}");
+
+                    if (webElement.Chrome == null || string.IsNullOrEmpty(webElement.Selector))
+                        return null;
+
+                    // Refresh elemen
+                    WebElement fresh = webElement.Chrome.FindElementByXPath(webElement.Selector, 5);
+
+                    if (!fresh.State || fresh.Item == null)
+                        return null;
+
+                    // Update referensi elemen lama
+                    webElement.Item = fresh.Item;
+                    webElement.State = fresh.State;
+                    webElement.Message = fresh.Message;
+
+                    Thread.Sleep(1000); // delay kecil
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            return null;
+
+        } // end of method
+
+
     } // end of class
 
     public class SafeClickResult
@@ -1652,6 +1696,7 @@ namespace Magic.BrowserAutomationNET
         public string Selector { get; set; } = string.Empty;
         public IWebElement? Item { get; set; }
         public IWebDriver? Driver { get; set; }
+        public Chrome? Chrome { get; set; }
     } // end of class
 
     public class WebElements
