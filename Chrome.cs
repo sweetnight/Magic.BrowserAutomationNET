@@ -1,9 +1,8 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
-using System.IO;
+using System.Management;
 using System.Text.Json;
 using System.Windows.Forms;
-using Newtonsoft.Json;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Interactions;
@@ -23,13 +22,14 @@ namespace Magic.BrowserAutomationNET
         public bool DisableExtension { get; set; } = false;
         public bool DisableApplicationCache { get; set; } = false;
         public bool Kiosk { get; set; } = false;
+        public string UserDataDir { get; set; } = string.Empty; // prioritas dibanding Profile. Jika diisi, maka Profile diabaikan.
         public string Profile { get; set; } = string.Empty;
         
         // hanya sampai direktori tempat file .exe
-        public string DriverDirectory { get; set; }
+        public string? DriverDirectory { get; set; }
 
         // full path sampai ke filename .exe ATAU bisa jg sampai direktori lokasi .exe nya saja
-        public string BinaryLocation { get; set; }
+        public string? BinaryLocation { get; set; }
         public bool SaveResources { get; set; } = true;
 
         public IWebDriver? Driver { get; set; }
@@ -37,18 +37,18 @@ namespace Magic.BrowserAutomationNET
         public ChromeDriverService? ChromeDriverService { get; set; }
         public ChromeOptions ChromeOptions { get; set; } = new ChromeOptions();
 
-        public Chrome(string binaryLocation = "", string driverDirectory = "")
+        public Chrome(string? binaryLocation = null, string? driverDirectory = null, string? instanceId = null)
         {
 
             this.BinaryLocation = binaryLocation;
             this.DriverDirectory = driverDirectory;
-            this.InstanceId = HelperNET.CreateRandomAlphabeticLowerCaseString(5);
+            this.InstanceId = instanceId == null ? HelperNET.CreateRandomAlphabeticLowerCaseString(5) : instanceId;
 
         } // end of method
 
         public void SetChromeOptions()
         {
-            if (BinaryLocation != "")
+            if (BinaryLocation != null)
             {
                 ChromeOptions.BinaryLocation = BinaryLocation;
             }
@@ -105,7 +105,11 @@ namespace Magic.BrowserAutomationNET
 
             // ChromeOptions.AddArgument("--disable-web-security");
 
-            if (Profile != string.Empty)
+            if(!string.IsNullOrWhiteSpace(UserDataDir))
+            {
+                ChromeOptions.AddArgument($@"--user-data-dir={UserDataDir}");
+            }
+            else if (Profile != string.Empty)
             {
                 string path = Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%");
 
@@ -149,7 +153,7 @@ namespace Magic.BrowserAutomationNET
                 ChromeOptions.AddArgument($"--browser.download.dir={DefaultDownloadDirectory}");
             }
 
-            if (DriverDirectory == "")
+            if (DriverDirectory == null)
             {
                 ChromeDriverService = ChromeDriverService.CreateDefaultService();
             }
@@ -798,7 +802,7 @@ namespace Magic.BrowserAutomationNET
                 cookieInStrings.Add(cookieItem);
             }
 
-            return JsonConvert.SerializeObject(cookieInStrings);
+            return JsonSerializer.Serialize(cookieInStrings);
         } // end of method
 
         public CookiesFile SaveCookiesToFile(string filename, bool append = false, double addDays = 0)
@@ -1007,7 +1011,7 @@ namespace Magic.BrowserAutomationNET
 
             Debug.WriteLine("Chrome ==================== : Akan melakukan AddCookiesFromJson");
 
-            List<CookieInStrings> cookieInStrings = JsonConvert.DeserializeObject<List<CookieInStrings>>(jsonString)!;
+            List<CookieInStrings> cookieInStrings = JsonSerializer.Deserialize<List<CookieInStrings>>(jsonString)!;
 
             foreach (CookieInStrings cookieItem in cookieInStrings!)
             {
@@ -1139,13 +1143,14 @@ namespace Magic.BrowserAutomationNET
 
         public bool InjectScript(string jsCode, out string message)
         {
+
             message = string.Empty;
 
             try
             {
                 if (Driver == null)
                 {
-                    message = "Driver belum diinisialisasi.";
+                    message = "Chrome Driver is not initialized yet.";
                     return false;
                 }
 
@@ -1153,14 +1158,15 @@ namespace Magic.BrowserAutomationNET
 
                 jsExecutor.ExecuteScript(jsCode);
 
-                message = "Script berhasil disuntikkan.";
+                message = "Script is injected successfully.";
                 return true;
             }
             catch (Exception ex)
             {
-                message = "Gagal menyuntikkan script. Exception: " + ex.Message;
+                message = "Fail inject script. Exception: " + ex.Message;
                 return false;
             }
+
         } // end of method
 
         public class Version
@@ -1248,6 +1254,96 @@ namespace Magic.BrowserAutomationNET
             return $"translate({attribute}, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')";
 
         } // end of method
+
+        public bool KillBrowserByUserDataDir(string userDataDir)
+        {
+
+            bool killed = false;
+
+            Process[] processes = Process.GetProcessesByName("chrome");
+
+            foreach (Process proc in processes)
+            {
+                try
+                {
+                    string query = $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {proc.Id}";
+
+                    using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(query))
+                    {
+                        foreach (ManagementObject obj in searcher.Get())
+                        {
+                            string? cmdLine = obj["CommandLine"]?.ToString();
+                            //Debug.WriteLine($"{cmdLine}");
+
+                            //if (!string.IsNullOrEmpty(cmdLine) && cmdLine.Contains($"--user-data-dir=\"{userDataDir}\"", StringComparison.OrdinalIgnoreCase))
+                            if (!string.IsNullOrEmpty(cmdLine) && cmdLine.Contains($"--user-data-dir=\"{userDataDir}\"", StringComparison.OrdinalIgnoreCase) && !cmdLine.Contains("--type=", StringComparison.OrdinalIgnoreCase)) // Hanya parent
+                            {
+                                proc.Kill();
+                                proc.WaitForExit();
+                                Debug.WriteLine($"Killed process {proc.Id} with user-data-dir match");
+                                killed = true;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error: {ex.Message}");
+                }
+            }
+
+            return killed;
+
+        } // end of method
+
+        /*
+        public bool KillBrowserByUserDataDir(string userDataDir)
+        {
+            bool killed = false;
+
+            string psCommand = $@"
+                Get-CimInstance Win32_Process -Filter ""Name='chrome.exe'"" |
+                Where-Object {{ $_.CommandLine -like '*--user-data-dir=""{userDataDir}""*' -and $_.CommandLine -notlike '*--type=*' }} |
+                Select-Object -ExpandProperty ProcessId
+            ";
+
+            ProcessStartInfo psi = new ProcessStartInfo
+            {
+                FileName = "powershell",
+                Arguments = $"-NoProfile -Command \"{psCommand}\"",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            Process psProc = Process.Start(psi)!;
+            string output = psProc.StandardOutput.ReadToEnd();
+            psProc.WaitForExit();
+
+            string[] lines = output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string line in lines)
+            {
+                if (int.TryParse(line.Trim(), out int pid))
+                {
+                    try
+                    {
+                        Process p = Process.GetProcessById(pid);
+                        p.Kill();
+                        p.WaitForExit();
+                        Debug.WriteLine($"Killed process {pid} with user-data-dir match");
+                        killed = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error killing process {pid}: {ex.Message}");
+                    }
+                }
+            }
+
+            return killed;
+        }
+        */
+
 
     } // end of class
 
