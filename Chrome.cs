@@ -23,7 +23,7 @@ namespace Magic.BrowserAutomationNET
         public bool DisableApplicationCache { get; set; } = false;
         public bool Kiosk { get; set; } = false;
         public string UserDataDir { get; set; } = string.Empty; // prioritas dibanding Profile. Jika diisi, maka Profile diabaikan.
-        public string Profile { get; set; } = string.Empty;
+        public string Profile { get; set; } = string.Empty; // Profile adalah sub UserDataDir bawaan di LocalAppData (user data dir default).
         
         // hanya sampai direktori tempat file .exe
         public string? DriverDirectory { get; set; }
@@ -1156,9 +1156,8 @@ namespace Magic.BrowserAutomationNET
 
                 IJavaScriptExecutor jsExecutor = (IJavaScriptExecutor)Driver;
 
-                jsExecutor.ExecuteScript(jsCode);
-
-                message = "Script is injected successfully.";
+                object? result = jsExecutor.ExecuteScript(jsCode);
+                message = result?.ToString() ?? "Script executed with no return value.";
                 return true;
             }
             catch (Exception ex)
@@ -1167,6 +1166,31 @@ namespace Magic.BrowserAutomationNET
                 return false;
             }
 
+        } // end of method
+
+        public bool InjectScriptAsync(string jsCode, out string result)
+        {
+            result = string.Empty;
+
+            try
+            {
+                if (Driver == null)
+                {
+                    result = "Chrome Driver is not initialized yet.";
+                    return false;
+                }
+
+                IJavaScriptExecutor jsExecutor = (IJavaScriptExecutor)Driver;
+                object? r = jsExecutor.ExecuteAsyncScript(jsCode);
+
+                result = r?.ToString() ?? string.Empty;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                result = "Fail inject script. Exception: " + ex.Message;
+                return false;
+            }
         } // end of method
 
         public class Version
