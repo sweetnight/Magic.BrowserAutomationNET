@@ -79,6 +79,16 @@ Fungsi:
 - Menghubungkan ke Chrome yang masih hidup
 - Membuka Chrome baru jika diperlukan
 
+Return:
+- **Chrome** → Instance Chrome yang **siap digunakan**
+  - Bisa berupa Chrome lama (reuse berhasil)
+  - Atau Chrome baru (dibuka oleh OpenChrome)
+
+Catatan:
+- Method ini **tidak pernah mengembalikan null**
+- Semua kegagalan koneksi ditangani internal
+
+
 ---
 
 ### ForceClose()
@@ -101,6 +111,57 @@ Menutup Chrome hanya jika Chrome dibuka oleh instance OpenChrome ini
 (yaitu saat ChromeInitialState == NotOpened).
 
 Ini adalah cara paling aman untuk lifecycle normal.
+
+---
+
+## Nilai yang Dikembalikan Library
+
+Library ini **tidak mengembalikan status kompleks lewat return value**, melainkan melalui:
+- Return object (`Chrome`)
+- Properti state
+- Event lifecycle
+
+---
+
+### 1. Return Langsung
+
+#### `Chrome Start()`
+
+- Mengembalikan instance `Chrome` yang valid dan usable
+- Caller **tidak perlu membedakan** Chrome lama atau baru
+
+---
+
+### 2. Properti State
+
+#### `StateCode ChromeInitialState`
+
+Menunjukkan **kondisi Chrome saat Start() pertama kali dipanggil**:
+
+| Nilai | Arti | Dampak Lifecycle |
+|------|------|------------------|
+| Opened | Chrome sudah ada & valid | Caller **tidak boleh** menutup Chrome |
+| NotOpened | Chrome tidak ada / zombie | Caller **wajib** menutup via DisposeIfOwned() |
+
+Properti ini menjadi **sumber kebenaran ownership Chrome**.
+
+---
+
+### 3. Event Lifecycle (Callback)
+
+Library menyediakan event untuk observability:
+
+OpenChromeEvents
+
+EventType:
+- Start
+- ChromeIsConnected
+- ZombieKilled
+- NewChromeIsOpened
+- BrowserClosed
+
+Semua event membawa payload:
+- `Chrome` → instance Chrome aktif
 
 ---
 
