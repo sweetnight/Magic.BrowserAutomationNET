@@ -37,13 +37,15 @@
         private bool _disposed = false; // untuk mendeteksi double dispose
 
         public Chrome Chrome { get; }
+        public CancellationToken CancellationToken { get; }
 
         public StateCode ChromeInitialState { get; private set; }
 
-        public OpenChrome(Chrome chrome)
+        public OpenChrome(Chrome chrome, CancellationToken cancellationToken)
         {
 
             Chrome = chrome;
+            CancellationToken = cancellationToken;
 
         } // end of method
 
@@ -83,6 +85,8 @@
             bool killedOpenedChrome = Chrome!.KillBrowserByUserDataDir(Chrome.UserDataDir);
             OpenChromeEvents?.Invoke(new OpenChromeEventArgs(EventType.ZombieKilled, Chrome));
 
+            CancellationToken.ThrowIfCancellationRequested();
+
             Chrome.OpenBrowser();
             OpenChromeEvents?.Invoke(new OpenChromeEventArgs(EventType.NewChromeIsOpened, Chrome));
 
@@ -101,7 +105,7 @@
             Dispose();
         } // end of method
 
-        public void DisposeIfOwned()
+        public bool DisposeIfOwned()
         {
 
             if (ChromeInitialState == StateCode.NotOpened)
@@ -110,7 +114,11 @@
                 OpenChromeEvents?.Invoke(new OpenChromeEventArgs(EventType.BrowserClosed, Chrome));
 
                 Dispose();
+
+                return true;
             }
+
+            return false;
 
         } // end of method
 
