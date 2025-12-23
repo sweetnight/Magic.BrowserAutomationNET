@@ -62,7 +62,7 @@ Prinsip:
 
 ### Constructor
 
-OpenChrome(Chrome chrome, string userDataDir)
+OpenChrome(Chrome chrome)
 
 Parameter:
 - chrome      : Instance Chrome yang dikelola caller
