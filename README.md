@@ -66,7 +66,6 @@ OpenChrome(Chrome chrome, string userDataDir)
 
 Parameter:
 - chrome      : Instance Chrome yang dikelola caller
-- userDataDir : Path user-data-dir untuk mendeteksi & membunuh zombie
 
 ---
 

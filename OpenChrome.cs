@@ -37,15 +37,13 @@
         private bool _disposed = false; // untuk mendeteksi double dispose
 
         public Chrome Chrome { get; }
-        public string UserDataDir { get; }
 
         public StateCode ChromeInitialState { get; private set; }
 
-        public OpenChrome(Chrome chrome, string userDataDir)
+        public OpenChrome(Chrome chrome)
         {
 
             Chrome = chrome;
-            UserDataDir = userDataDir;
 
         } // end of method
 
@@ -82,7 +80,7 @@
 
             // CLOSE DULU CHROME TERKAIT YANG SUDAH TERBUKA TAPI TIDAK CONNECT
 
-            bool killedOpenedChrome = Chrome!.KillBrowserByUserDataDir(UserDataDir);
+            bool killedOpenedChrome = Chrome!.KillBrowserByUserDataDir(Chrome.UserDataDir);
             OpenChromeEvents?.Invoke(new OpenChromeEventArgs(EventType.ZombieKilled, Chrome));
 
             Chrome.OpenBrowser();
