@@ -208,6 +208,80 @@ namespace Magic.BrowserAutomationNET
             }
         } // end of method
 
+        public string? GetChromeBinaryPath()
+        {
+
+            string[] hives =
+            {
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+            };
+
+            // 1. Cek LocalMachine
+            foreach (string key in hives)
+            {
+                using (var regKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(key))
+                {
+                    if (regKey?.GetValue(null) != null)
+                        return regKey.GetValue(null)!.ToString()!;
+                }
+            }
+
+            // 2. Cek CurrentUser (non-admin install)
+            foreach (string key in hives)
+            {
+                using (var regKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(key))
+                {
+                    if (regKey?.GetValue(null) != null)
+                        return regKey.GetValue(null)!.ToString()!;
+                }
+            }
+
+            // 3. Fallback path umum
+            string[] fallbackPaths =
+            {
+                @"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+            };
+
+            foreach (string path in fallbackPaths)
+            {
+                if (File.Exists(path))
+                    return path;
+            }
+
+            return null;
+
+        } // end of method
+
+        public void HardOpenBrowser(string chromeBinaryPath)
+        {
+
+            // "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="C:\Users\Dell Latitude 7400\AppData\Roaming\Shopay\Chrome Profiles\1" --profile-directory="Default"
+
+            try
+            {
+                Process process = new Process();
+
+                process.StartInfo.FileName = chromeBinaryPath;
+                process.StartInfo.Arguments =
+                    $"--user-data-dir=\"{UserDataDir}\" " +
+                    $"--profile-directory=\"Default\"";
+
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.CreateNoWindow = true;
+                process.StartInfo.RedirectStandardOutput = false;
+                process.StartInfo.RedirectStandardError = false;
+
+                process.Start();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("OpenChromeWithProfile Error: " + ex.Message);
+            }
+
+        } // end of method
+
         public Browser OpenBrowser()
         {
             SetChromeOptions();
@@ -246,6 +320,10 @@ namespace Magic.BrowserAutomationNET
                 //Driver = new ChromeDriver(ChromeOptions);
                 browser.State = true;
                 browser.Message = "Open browser successfully.";
+            }
+            catch (WebDriverException ex)
+            {
+                Debug.WriteLine("=============== WebDriverException: " + ex.Message);
             }
             catch (Exception ex)
             {
@@ -319,6 +397,10 @@ namespace Magic.BrowserAutomationNET
                 returnResults.Url = Url;
 
                 Debug.WriteLine("Chrome ==================== : Navigate berhasil: " + Url);
+            }
+            catch(WebDriverArgumentException ex)
+            {
+                Debug.WriteLine("=============== WebDriverArgumentException: " + ex.Message);
             }
             catch (Exception ex)
             {
