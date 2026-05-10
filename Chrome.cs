@@ -13,6 +13,17 @@ namespace Magic.BrowserAutomationNET
 {
     public class Chrome
     {
+
+        public enum ChromeError
+        {
+            None,
+            ConnectionTimeOut,
+            NameNotResolved,
+            ProxyConnectionFailed,
+            InternetDisconnected,
+            Unknown
+        }
+
         public string InstanceId { get; set; }
         public bool Headless { get; set; } = false;
         public bool MaximizeWindow { get; set; } = true;
@@ -382,7 +393,7 @@ namespace Magic.BrowserAutomationNET
         public WebPage Navigate(string Url)
         {
 
-            Debug.WriteLine("Chrome ==================== : Akan melakukan Navigate");
+            Debug.WriteLine("Chrome ==================== : Akan melakukan Navigate: " + Url);
 
             WebPage returnResults = new WebPage();
 
@@ -401,6 +412,7 @@ namespace Magic.BrowserAutomationNET
             }
             catch(WebDriverArgumentException ex)
             {
+                returnResults.ChromeError = ParseChromeNetError(ex);
                 Debug.WriteLine("=============== WebDriverArgumentException: " + ex.Message);
             }
             catch (Exception ex)
@@ -408,11 +420,13 @@ namespace Magic.BrowserAutomationNET
                 returnResults.State = false;
                 returnResults.Message = "Navigate failed. Exception : " + ex.Message;
                 returnResults.Url = string.Empty;
+                returnResults.ChromeError = ParseChromeNetError(ex);
 
                 Debug.WriteLine("Chrome ==================== : Navigate exception: " + ex.Message);
             }
 
             return returnResults;
+
         } // end of function
 
         public WebPage Refresh()
@@ -1413,6 +1427,31 @@ namespace Magic.BrowserAutomationNET
 
         } // end of method
 
+        public ChromeError ParseChromeNetError(Exception ex)
+        {
+
+            if (ex == null) return ChromeError.None;
+
+            string msg = ex.Message.ToUpper();
+
+            Debug.WriteLine("Chrome ParseChromeNetError =========================== : Exception message: " + msg);
+
+            if (msg.Contains("ERR_CONNECTION_TIMED_OUT"))
+                return ChromeError.ConnectionTimeOut;
+
+            if (msg.Contains("ERR_NAME_NOT_RESOLVED"))
+                return ChromeError.NameNotResolved;
+
+            if (msg.Contains("ERR_PROXY_CONNECTION_FAILED"))
+                return ChromeError.ProxyConnectionFailed;
+
+            if (msg.Contains("ERR_INTERNET_DISCONNECTED"))
+                return ChromeError.InternetDisconnected;
+
+            return ChromeError.Unknown;
+
+        } // end of method
+
         /*
         public bool KillBrowserByUserDataDir(string userDataDir)
         {
@@ -1927,6 +1966,8 @@ namespace Magic.BrowserAutomationNET
         public bool State { get; set; }
         public string Message { get; set; } = string.Empty;
         public string Url { get; set; } = string.Empty;
+        public Chrome.ChromeError ChromeError { get; set; } = Chrome.ChromeError.None;
+
     } // end of class
 
     public class Browser
