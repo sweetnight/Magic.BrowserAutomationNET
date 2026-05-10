@@ -1,12 +1,13 @@
-﻿using System.Diagnostics;
-using System.Globalization;
-using System.Management;
-using System.Text.Json;
-using System.Windows.Forms;
-using OpenQA.Selenium;
+﻿using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Interactions;
 using OpenQA.Selenium.Support.UI;
+using System.Diagnostics;
+using System.Globalization;
+using System.Management;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Windows.Forms;
 
 namespace Magic.BrowserAutomationNET
 {
@@ -1278,61 +1279,71 @@ namespace Magic.BrowserAutomationNET
         public class Version
         {
 
-            public static async Task<(string LatestVersion, string ChromeForTestingDownloadURL, string ChromedriverDownloadURL)> GetLatestChromeData()
+            public static async Task<(string LatestVersion, string ChromeForTestingDownloadURL, string ChromedriverDownloadURL)> GetLatestChromeData(string? forcedDownloadURL = null)
             {
 
-                string apiUrl = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
-
-                using (HttpClient client = new HttpClient())
+                if (string.IsNullOrEmpty(forcedDownloadURL))
                 {
-                    try
-                    {
-                        // Mengambil data JSON dari URL
-                        string jsonResponse = await client.GetStringAsync(apiUrl);
+                    string apiUrl = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
 
-                        // Mendapatkan data versi stable
-                        using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
+                    using (HttpClient client = new HttpClient())
+                    {
+                        try
                         {
-                            JsonElement root = doc.RootElement;
-                            JsonElement stable = root.GetProperty("channels").GetProperty("Stable");
-                            string stableVersion = stable.GetProperty("version").GetString()!;
+                            // Mengambil data JSON dari URL
+                            string jsonResponse = await client.GetStringAsync(apiUrl);
 
-                            string chromeUrl = string.Empty;
-                            string chromedriverUrl = string.Empty;
-
-                            // Ambil URL Chrome win64
-                            foreach (var download in stable.GetProperty("downloads").GetProperty("chrome").EnumerateArray())
+                            // Mendapatkan data versi stable
+                            using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
                             {
-                                if (download.GetProperty("platform").GetString() == "win64")
-                                {
-                                    chromeUrl = download.GetProperty("url").GetString()!;
-                                    break;
-                                }
-                            }
+                                JsonElement root = doc.RootElement;
+                                JsonElement stable = root.GetProperty("channels").GetProperty("Stable");
+                                string stableVersion = stable.GetProperty("version").GetString()!;
 
-                            // Ambil URL Chromedriver win64
-                            foreach (var download in stable.GetProperty("downloads").GetProperty("chromedriver").EnumerateArray())
-                            {
-                                if (download.GetProperty("platform").GetString() == "win64")
-                                {
-                                    chromedriverUrl = download.GetProperty("url").GetString()!;
-                                    break;
-                                }
-                            }
+                                string chromeUrl = string.Empty;
+                                string chromedriverUrl = string.Empty;
 
-                            return (stableVersion, chromeUrl, chromedriverUrl);
+                                // Ambil URL Chrome win64
+                                foreach (var download in stable.GetProperty("downloads").GetProperty("chrome").EnumerateArray())
+                                {
+                                    if (download.GetProperty("platform").GetString() == "win64")
+                                    {
+                                        chromeUrl = download.GetProperty("url").GetString()!;
+                                        break;
+                                    }
+                                }
+
+                                // Ambil URL Chromedriver win64
+                                foreach (var download in stable.GetProperty("downloads").GetProperty("chromedriver").EnumerateArray())
+                                {
+                                    if (download.GetProperty("platform").GetString() == "win64")
+                                    {
+                                        chromedriverUrl = download.GetProperty("url").GetString()!;
+                                        break;
+                                    }
+                                }
+
+                                return (stableVersion, chromeUrl, chromedriverUrl);
+                            }
                         }
-                    }
-                    catch (HttpRequestException e)
-                    {
-                        Console.WriteLine($"Error saat mengakses URL: {e.Message}");
-                    }
-                    catch (System.Text.Json.JsonException e)
-                    {
-                        Console.WriteLine($"Error saat memproses data JSON: {e.Message}");
-                    }
+                        catch (HttpRequestException e)
+                        {
+                            Console.WriteLine($"Error saat mengakses URL: {e.Message}");
+                        }
+                        catch (System.Text.Json.JsonException e)
+                        {
+                            Console.WriteLine($"Error saat memproses data JSON: {e.Message}");
+                        }
 
-                    return ("0.0.0.0", string.Empty, string.Empty);
+                        return ("0.0.0.0", string.Empty, string.Empty);
+                    }
+                }
+                else
+                {
+                    Match match = Regex.Match(forcedDownloadURL, @"/(\d[^/]*)/");
+                    string version = match.Groups[1].Value;
+
+                    return (version, string.Empty, forcedDownloadURL);
                 }
 
             } // end of method
